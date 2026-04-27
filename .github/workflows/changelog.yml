@@ -1,0 +1,41 @@
+name: Changelog Sync
+on:
+  push:
+    branches: [main]
+jobs:
+  changelog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Get commit info
+        id: info
+        run: |
+          echo "msg=$(git log -1 --pretty=%s)" >> $GITHUB_OUTPUT
+          echo "files=$(git diff --name-only HEAD~1 HEAD | tr '\n' ',' | sed 's/,$//')" >> $GITHUB_OUTPUT
+          echo "ts=$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_OUTPUT
+      - name: Read version
+        id: ver
+        run: echo "version=$(cat version.json | python3 -c 'import sys,json; v=json.load(sys.stdin)["version"]; parts=v.split("."); parts[2]=str(int(parts[2])+1); print(".".join(parts))')" >> $GITHUB_OUTPUT
+      - name: Update version.json
+        run: echo '{"version":"${{ steps.ver.outputs.version }}"}' > version.json
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add version.json
+          git commit -m "chore: bump version to ${{ steps.ver.outputs.version }}" || echo "No changes"
+          git push || echo "Nothing to push"
+      - name: Call changelog API
+        run: |
+          curl -s -X POST "${{ secrets.NEXTAUTH_URL }}/api/internal/changelog" \
+            -H "Content-Type: application/json" \
+            -H "x-changelog-secret: ${{ secrets.CHANGELOG_SECRET }}" \
+            -d '{
+              "version": "${{ steps.ver.outputs.version }}",
+              "commitMsg": "${{ steps.info.outputs.msg }}",
+              "description": "Automated changelog entry from GitHub Actions push",
+              "filesChanged": "${{ steps.info.outputs.files }}",
+              "timestamp": "${{ steps.info.outputs.ts }}"
+            }' || echo "Changelog sync skipped"
