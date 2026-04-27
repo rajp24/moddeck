@@ -6,7 +6,10 @@ export async function GET(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const logins = req.nextUrl.searchParams.get("logins") || "";
   if (!logins) return NextResponse.json([]);
-  const res = await twitchFetch(`streams?user_login=${logins}`, session.access_token);
+  // logins may be comma-joined or &-joined — normalize to repeated query params
+  const loginList = logins.split(/[,&]+/).filter(Boolean);
+  const query = loginList.map(l => `user_login=${encodeURIComponent(l)}`).join("&");
+  const res = await twitchFetch(`streams?${query}`, session.access_token);
   const data = await res.json();
   return NextResponse.json(data.data || []);
 }
