@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import versionData from "@/version.json";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { ChannelProvider, useChannels } from "@/context/ChannelContext";
 import { ToastProvider } from "@/context/ToastContext";
@@ -82,6 +83,7 @@ function DashboardInner() {
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
           {user.profile_image_url && <img src={user.profile_image_url} alt="" style={{ width: 26, height: 26, borderRadius: "50%", border: "2px solid var(--accent)" }} />}
           <span style={{ fontSize: 13, fontWeight: 600 }}>{user.display_name}</span>
+          <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", fontFamily: "monospace", letterSpacing: "0.03em" }}>v{versionData.version}</span>
           <button onClick={logout} className="btn-ghost" style={{ padding: "4px 10px", fontSize: 12 }}>Logout</button>
         </div>
       </div>
