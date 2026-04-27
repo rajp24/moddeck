@@ -1,6 +1,7 @@
 "use client";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import versionData from "@/version.json";
 
 export default function LandingPage() {
   const router = useRouter();
@@ -87,6 +88,10 @@ export default function LandingPage() {
 
         <p style={{ marginTop: 16, fontSize: 12, color: "rgba(232,232,240,0.4)" }}>
           Requires Twitch moderator permissions
+        </p>
+
+        <p style={{ marginTop: 24, fontSize: 11, color: "rgba(232,232,240,0.2)", fontFamily: "monospace" }}>
+          v{versionData.version}
         </p>
       </div>
     </div>
