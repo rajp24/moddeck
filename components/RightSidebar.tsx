@@ -7,6 +7,9 @@ interface Props {
   selectedChannel: Channel | null;
   channels: Channel[];
   onChatterClick: (username: string) => void;
+  onBan: (username: string) => void;
+  onTimeout: (username: string) => void;
+  onWarn: (username: string) => void;
   onPoll: () => void;
   onPrediction: () => void;
 }
@@ -17,7 +20,7 @@ interface Chatter {
   user_name: string;
 }
 
-export default function RightSidebar({ selectedChannel, channels, onChatterClick, onPoll, onPrediction }: Props) {
+export default function RightSidebar({ selectedChannel, channels, onChatterClick, onBan, onTimeout, onWarn, onPoll, onPrediction }: Props) {
   const { addToast } = useToastContext();
   const [tab, setTab] = useState<"community" | "automod" | "polls">("community");
   const [chatters, setChatters] = useState<Chatter[]>([]);
@@ -25,6 +28,8 @@ export default function RightSidebar({ selectedChannel, channels, onChatterClick
   const [automodQueue, setAutomodQueue] = useState<{ msg_id: string; user_login: string; message_text: string }[]>([]);
   const [activePoll, setActivePoll] = useState<{ title: string; choices: { title: string; votes: number }[]; ends_at: string } | null>(null);
   const [activePrediction, setActivePrediction] = useState<{ title: string; outcomes: { title: string; channel_points: number }[] } | null>(null);
+  const [chatterSectionOpen, setChatterSectionOpen] = useState(true);
+  const [chatterMenu, setChatterMenu] = useState<string | null>(null);
 
   const fetchChatters = useCallback(async () => {
     if (!selectedChannel) return;
@@ -60,6 +65,14 @@ export default function RightSidebar({ selectedChannel, channels, onChatterClick
 
   useEffect(() => { if (tab === "automod") fetchAutomod(); }, [tab, fetchAutomod]);
   useEffect(() => { if (tab === "polls") fetchPolls(); }, [tab, fetchPolls]);
+
+  // Close chatter menu on outside click
+  useEffect(() => {
+    if (!chatterMenu) return;
+    const handler = () => setChatterMenu(null);
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [chatterMenu]);
 
   const handleAutomod = async (msg_id: string, action: "ALLOW" | "DENY") => {
     if (!selectedChannel) return;
@@ -101,20 +114,48 @@ export default function RightSidebar({ selectedChannel, channels, onChatterClick
         {/* Community tab */}
         {tab === "community" && (
           <>
+            {/* Total viewer count */}
+            <div style={{ textAlign: "center", marginBottom: 16 }}>
+              <div style={{ fontSize: 36, fontWeight: 800, color: "#fff", lineHeight: 1 }}>{chatters.length.toLocaleString()}</div>
+              <div style={{ fontSize: 12, color: "rgba(232,232,240,0.4)", marginTop: 2 }}>viewers in chat</div>
+            </div>
+
             <input type="text" value={chatterSearch} onChange={(e) => setChatterSearch(e.target.value)}
               placeholder="Search chatters..." style={{ marginBottom: 10, fontSize: 13 }} />
-            <div style={{ fontSize: 11, color: "rgba(232,232,240,0.4)", marginBottom: 8 }}>{chatters.length} chatters</div>
-            {filteredChatters.map((c) => (
-              <div key={c.user_id} onClick={() => onChatterClick(c.user_login)} style={{
-                display: "flex", alignItems: "center", gap: 10, padding: "8px 4px",
-                borderBottom: "1px solid rgba(255,255,255,0.05)", cursor: "pointer",
-                borderRadius: 6, transition: "background 0.15s",
-              }} onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.05)")}
+
+            {/* Collapsible viewers section */}
+            <div onClick={() => setChatterSectionOpen(!chatterSectionOpen)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", cursor: "pointer", borderBottom: "1px solid rgba(255,255,255,0.07)", marginBottom: 6 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "rgba(232,232,240,0.5)", textTransform: "uppercase", letterSpacing: 1 }}>Viewers</span>
+              <span style={{ fontSize: 12, color: "rgba(232,232,240,0.4)" }}>{filteredChatters.length} {chatterSectionOpen ? "▾" : "▸"}</span>
+            </div>
+
+            {chatterSectionOpen && filteredChatters.map((c) => (
+              <div key={c.user_id} style={{ position: "relative", display: "flex", alignItems: "center", gap: 8, padding: "7px 4px", borderBottom: "1px solid rgba(255,255,255,0.05)", borderRadius: 6, transition: "background 0.15s" }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.04)")}
                 onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
-                <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(145,71,255,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#c084fc", flexShrink: 0 }}>
-                  {c.user_name[0]?.toUpperCase()}
+                <div onClick={() => onChatterClick(c.user_login)} style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, cursor: "pointer" }}>
+                  <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(145,71,255,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#c084fc", flexShrink: 0 }}>
+                    {c.user_name[0]?.toUpperCase()}
+                  </div>
+                  <span style={{ fontSize: 13 }}>{c.user_name}</span>
                 </div>
-                <span style={{ fontSize: 13 }}>{c.user_name}</span>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setChatterMenu(chatterMenu === c.user_login ? null : c.user_login); }}
+                  style={{ marginLeft: "auto", background: "none", border: "none", color: "rgba(232,232,240,0.4)", cursor: "pointer", fontSize: 16, padding: "0 4px" }}>⋯</button>
+                {chatterMenu === c.user_login && (
+                  <div style={{ position: "absolute", right: 0, top: "100%", zIndex: 50, background: "#13131f", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: 6, minWidth: 130, boxShadow: "0 8px 24px rgba(0,0,0,0.5)" }}
+                    onClick={(e) => e.stopPropagation()}>
+                    {[
+                      { label: "⚠️ Warn", action: () => { onWarn(c.user_login); setChatterMenu(null); } },
+                      { label: "⏱ Timeout", action: () => { onTimeout(c.user_login); setChatterMenu(null); } },
+                      { label: "🔨 Ban", action: () => { onBan(c.user_login); setChatterMenu(null); } },
+                    ].map(item => (
+                      <button key={item.label} onClick={item.action} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", color: "rgba(232,232,240,0.85)", fontSize: 13, padding: "6px 10px", cursor: "pointer", borderRadius: 6 }}
+                        onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.08)")}
+                        onMouseLeave={e => (e.currentTarget.style.background = "none")}>{item.label}</button>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
             {filteredChatters.length === 0 && <div style={{ color: "rgba(232,232,240,0.3)", fontSize: 13, textAlign: "center", marginTop: 20 }}>No chatters found</div>}

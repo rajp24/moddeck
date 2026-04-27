@@ -27,8 +27,10 @@ export default function PollModal({ channels, onClose }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ broadcaster_id: channelId, title, choices, duration }),
       });
-      if (res.ok) { addToast("📊 Poll created!", "success"); onClose(); }
-      else addToast("Poll creation failed.", "error");
+      const data = await res.json();
+      console.log("Poll result:", res.status, data);
+      if (res.ok) { addToast("Poll created!", "success"); onClose(); }
+      else { addToast(`Poll failed: ${data?.message || data?.error || res.status}`, "error"); }
     } finally { setLoading(false); }
   };
 

@@ -23,13 +23,6 @@ const QUICK_ACTIONS = [
   { label: "Predict", icon: "🎯", color: "#c084fc", bg: "rgba(192,132,252,0.15)", action: "predict" },
 ];
 
-const ACTIVITY = [
-  { icon: "❤️", text: "xXGamer99 followed", time: "2m ago" },
-  { icon: "⚔️", text: "StreamerX raided with 150 viewers", time: "8m ago" },
-  { icon: "⭐", text: "CoolUser subscribed (Tier 1)", time: "12m ago" },
-  { icon: "💎", text: "ProPlayer cheered 500 bits", time: "18m ago" },
-];
-
 export default function LeftSidebar({ channels, selectedChannel, onBan, onTimeout, onWarn, onAnnounce, onPoll, onPrediction }: Props) {
   const { addToast } = useToastContext();
   const [toggles, setToggles] = useState({
@@ -64,6 +57,26 @@ export default function LeftSidebar({ channels, selectedChannel, onBan, onTimeou
       addToast("Failed to update setting", "error");
     }
   };
+
+  // Fetch real chat settings when selectedChannel changes
+  useEffect(() => {
+    if (!selectedChannel) return;
+    fetch(`/api/twitch/chat-settings?broadcaster_id=${selectedChannel.broadcaster_id}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data && typeof data === "object" && !data.error) {
+          setToggles({
+            slow_mode: data.slow_mode || false,
+            followers_only: data.follower_mode || false,
+            sub_only: data.subscriber_mode || false,
+            emote_only: data.emote_mode || false,
+            unique_chat: data.unique_chat_mode || false,
+          });
+          if (data.slow_mode_wait_time) setSlowSeconds(data.slow_mode_wait_time);
+        }
+      })
+      .catch(() => {});
+  }, [selectedChannel]);
 
   useEffect(() => {
     if (!selectedChannel) return;
@@ -105,8 +118,8 @@ export default function LeftSidebar({ channels, selectedChannel, onBan, onTimeou
         {QUICK_ACTIONS.map((a) => (
           <button key={a.action} onClick={() => handleAction(a.action)} style={{
             background: a.bg, color: a.color, border: `1px solid ${a.color}40`,
-            borderRadius: 10, padding: "10px 8px", fontSize: 13, fontWeight: 600,
-            cursor: "pointer", transition: "all 0.2s",
+            borderRadius: 10, padding: "14px 8px", fontSize: 13, fontWeight: 600,
+            cursor: "pointer", transition: "all 0.2s", minHeight: 44,
           }}>{a.icon} {a.label}</button>
         ))}
       </div>
@@ -151,22 +164,6 @@ export default function LeftSidebar({ channels, selectedChannel, onBan, onTimeou
             <button onClick={() => deleteTerm(t.id)} style={{ background: "none", border: "none", color: "#f87171", cursor: "pointer", fontSize: 14 }}>✕</button>
           </div>
         ))}
-      </div>
-
-      <Section title="Activity Feed" />
-      <div style={{ flex: 1, overflowY: "auto" }}>
-        {ACTIVITY.map((a, i) => (
-          <div key={i} style={{ display: "flex", gap: 8, padding: "7px 0", borderBottom: "1px solid rgba(255,255,255,0.05)", fontSize: 12 }}>
-            <span style={{ fontSize: 16 }}>{a.icon}</span>
-            <div style={{ flex: 1 }}>
-              <div style={{ color: "rgba(232,232,240,0.85)" }}>{a.text}</div>
-              <div style={{ color: "rgba(232,232,240,0.4)", fontSize: 11 }}>{a.time}</div>
-            </div>
-          </div>
-        ))}
-        <div style={{ fontSize: 11, color: "rgba(232,232,240,0.3)", marginTop: 8 }}>
-          EventSub via tmi.js — extend when needed
-        </div>
       </div>
     </div>
   );

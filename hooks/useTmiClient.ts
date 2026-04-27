@@ -8,8 +8,8 @@ export interface ChatMessage {
   displayName: string;
   color: string;
   text: string;
-  timestamp: Date;
   badges: Record<string, string>;
+  timestamp: number; // Date.now()
 }
 
 interface UseTmiClientOptions {
@@ -61,8 +61,8 @@ export function useTmiClient({ channels, access_token, username }: UseTmiClientO
             displayName: tags["display-name"] || tags.username || "unknown",
             color: tags.color || "#9147ff",
             text: message,
-            timestamp: new Date(),
             badges: (tags.badges as Record<string, string>) || {},
+            timestamp: Date.now(),
           };
           setMessages((prev) => [...prev.slice(-200), msg]);
         });

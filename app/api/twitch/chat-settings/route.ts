@@ -1,6 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession, twitchFetch } from "@/lib/twitch";
 
+export async function GET(req: NextRequest) {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const broadcaster_id = req.nextUrl.searchParams.get("broadcaster_id");
+  if (!broadcaster_id) return NextResponse.json({ error: "Missing broadcaster_id" }, { status: 400 });
+  const res = await twitchFetch(
+    `chat/settings?broadcaster_id=${broadcaster_id}&moderator_id=${session.user_id}`,
+    session.access_token
+  );
+  const data = await res.json();
+  console.log("Chat settings GET:", res.status, JSON.stringify(data));
+  return NextResponse.json(data.data?.[0] || {});
+}
+
 export async function PATCH(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

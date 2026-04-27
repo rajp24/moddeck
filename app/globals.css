@@ -223,3 +223,27 @@ select:focus { border-color: var(--accent); }
 input[type="text"]::placeholder,
 textarea::placeholder { color: var(--text-muted); }
 select option { background: #1a1a2e; }
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@media (max-width: 768px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr !important;
+    grid-template-rows: auto 1fr auto !important;
+  }
+  .left-sidebar {
+    display: none !important;
+  }
+  .right-sidebar {
+    display: none !important;
+  }
+  .stream-grid-mobile {
+    display: flex !important;
+    flex-direction: row !important;
+    overflow-x: auto !important;
+    height: 140px !important;
+  }
+}

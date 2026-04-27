@@ -20,18 +20,19 @@ export default function BanModal({ channels, onClose, defaultUsername = "" }: Pr
     if (!username || !channelId) return;
     setLoading(true);
     try {
-      // Look up user_id from username
       const ch = channels.find((c) => c.broadcaster_id === channelId);
       const res = await fetch("/api/twitch/ban", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ broadcaster_id: channelId, user_id: username, reason }),
       });
+      const data = await res.json();
+      console.log("Ban result:", res.status, data);
       if (res.ok) {
         addToast(`🔨 ${username} banned from ${ch?.broadcaster_name}`, "success");
         onClose();
       } else {
-        addToast("Ban failed. Check username.", "error");
+        addToast(`Ban failed: ${data?.message || data?.error || res.status}`, "error");
       }
     } finally {
       setLoading(false);

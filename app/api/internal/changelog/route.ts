@@ -10,9 +10,11 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     await appendChangelogEntry(body);
+    console.log("Changelog entry appended successfully");
     return NextResponse.json({ success: true });
-  } catch (err) {
-    console.error("Changelog error:", err);
-    return NextResponse.json({ error: "Internal error" }, { status: 500 });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("Changelog error:", msg);
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

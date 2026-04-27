@@ -18,6 +18,8 @@ import PredictionModal from "@/components/modals/PredictionModal";
 
 type ModalType = "ban" | "timeout" | "warn" | "announce" | "poll" | "prediction" | null;
 
+const CHANNEL_COLORS = ["#9147ff", "#00d4aa", "#3b82f6", "#f97316", "#ec4899"];
+
 function DashboardInner() {
   const { user, loading, logout } = useAuth();
   const { channels, selectedChannel, setSelectedChannel } = useChannels();
@@ -25,6 +27,8 @@ function DashboardInner() {
   const [modal, setModal] = useState<ModalType>(null);
   const [prefillUsername, setPrefillUsername] = useState("");
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [hiddenChannels, setHiddenChannels] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!loading && !user) router.replace("/");
@@ -45,6 +49,8 @@ function DashboardInner() {
     setModal(type);
   };
 
+  const visibleChannels = channels.filter(c => !hiddenChannels.has(c.broadcaster_id));
+
   if (loading || !user) {
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: "#0a0a0f" }}>
@@ -53,8 +59,6 @@ function DashboardInner() {
     );
   }
 
-  const CHANNEL_COLORS = ["#9147ff", "#00d4aa", "#3b82f6", "#f97316", "#ec4899"];
-
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "#0a0a0f", overflow: "hidden" }}>
       {/* Top bar */}
@@ -62,6 +66,7 @@ function DashboardInner() {
         {/* Logo */}
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginRight: 12, flexShrink: 0 }}>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="#9147ff"><polygon points="5,3 19,12 5,21" /></svg>
+          <span style={{ fontSize: 11, fontFamily: "monospace", color: "rgba(232,232,240,0.35)", marginRight: 4 }}>v{versionData.version}</span>
           <span style={{ fontWeight: 800, fontSize: 15, color: "#fff" }}>ModDeck</span>
         </div>
 
@@ -81,17 +86,45 @@ function DashboardInner() {
         ))}
 
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+          {/* Channel filter button */}
+          <div style={{ position: "relative" }}>
+            <button onClick={() => setFilterOpen(!filterOpen)} className="btn-ghost" style={{ padding: "4px 10px", fontSize: 14, position: "relative" }}>
+              ⚙ Channels {hiddenChannels.size > 0 && <span style={{ background: "#9147ff", color: "#fff", borderRadius: "50%", fontSize: 10, padding: "1px 5px", marginLeft: 4 }}>{hiddenChannels.size}</span>}
+            </button>
+            {filterOpen && (
+              <div style={{ position: "absolute", top: "100%", right: 0, zIndex: 100, background: "#13131f", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, padding: 12, minWidth: 200, boxShadow: "0 8px 32px rgba(0,0,0,0.5)" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(232,232,240,0.4)", marginBottom: 10, textTransform: "uppercase", letterSpacing: 1 }}>Show/Hide Channels</div>
+                <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+                  <button onClick={() => setHiddenChannels(new Set())} className="btn-ghost" style={{ fontSize: 11, padding: "3px 8px" }}>Show all</button>
+                  <button onClick={() => setHiddenChannels(new Set(channels.map(c => c.broadcaster_id)))} className="btn-ghost" style={{ fontSize: 11, padding: "3px 8px" }}>Hide all</button>
+                </div>
+                {channels.map((ch, i) => (
+                  <label key={ch.broadcaster_id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", cursor: "pointer", fontSize: 13 }}>
+                    <input type="checkbox" checked={!hiddenChannels.has(ch.broadcaster_id)}
+                      onChange={() => {
+                        const next = new Set(hiddenChannels);
+                        if (next.has(ch.broadcaster_id)) next.delete(ch.broadcaster_id);
+                        else next.add(ch.broadcaster_id);
+                        setHiddenChannels(next);
+                      }} />
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: CHANNEL_COLORS[i % CHANNEL_COLORS.length], display: "inline-block" }} />
+                    {ch.broadcaster_name}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+
           {user.profile_image_url && <img src={user.profile_image_url} alt="" style={{ width: 26, height: 26, borderRadius: "50%", border: "2px solid var(--accent)" }} />}
           <span style={{ fontSize: 13, fontWeight: 600 }}>{user.display_name}</span>
-          <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", fontFamily: "monospace", letterSpacing: "0.03em" }}>v{versionData.version}</span>
           <button onClick={logout} className="btn-ghost" style={{ padding: "4px 10px", fontSize: 12 }}>Logout</button>
         </div>
       </div>
 
       {/* Main 3-column grid */}
-      <div style={{ flex: 1, display: "grid", gridTemplateColumns: "260px 1fr 240px", overflow: "hidden" }}>
+      <div className="dashboard-grid" style={{ flex: 1, display: "grid", gridTemplateColumns: "260px 1fr 280px", overflow: "hidden" }}>
         {/* Left sidebar */}
-        <div style={{ borderRight: "1px solid rgba(255,255,255,0.07)", overflow: "hidden" }}>
+        <div className="left-sidebar" style={{ borderRight: "1px solid rgba(255,255,255,0.07)", overflow: "hidden" }}>
           <LeftSidebar
             channels={channels}
             selectedChannel={selectedChannel}
@@ -107,7 +140,7 @@ function DashboardInner() {
         {/* Center */}
         <div style={{ overflow: "hidden" }}>
           <CenterPanel
-            channels={channels}
+            channels={visibleChannels}
             selectedChannel={selectedChannel}
             messages={messages}
             sendMessage={sendMessage}
@@ -119,11 +152,14 @@ function DashboardInner() {
         </div>
 
         {/* Right sidebar */}
-        <div style={{ borderLeft: "1px solid rgba(255,255,255,0.07)", overflow: "hidden" }}>
+        <div className="right-sidebar" style={{ borderLeft: "1px solid rgba(255,255,255,0.07)", overflow: "hidden" }}>
           <RightSidebar
             selectedChannel={selectedChannel}
-            channels={channels}
+            channels={visibleChannels}
             onChatterClick={(u) => openModal("ban", u)}
+            onBan={(u) => { setPrefillUsername(u); openModal("ban"); }}
+            onTimeout={(u) => { setPrefillUsername(u); openModal("timeout"); }}
+            onWarn={(u) => { setPrefillUsername(u); openModal("warn"); }}
             onPoll={() => openModal("poll")}
             onPrediction={() => openModal("prediction")}
           />

@@ -16,7 +16,8 @@ export async function POST(req: NextRequest) {
     }),
   });
   const data = await res.json();
-  return NextResponse.json(data);
+  console.log("Poll response:", res.status, JSON.stringify(data));
+  return NextResponse.json(data, { status: res.status });
 }
 
 export async function GET(req: NextRequest) {
