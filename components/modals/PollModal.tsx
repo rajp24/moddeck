@@ -19,7 +19,9 @@ export default function PollModal({ channels, onClose }: Props) {
   const removeChoice = (i: number) => choices.length > 2 && setChoices(choices.filter((_, idx) => idx !== i));
 
   const handleSubmit = async () => {
-    if (!title || choices.some((c) => !c.trim())) return;
+    if (!channelId) { addToast("No channel selected", "error"); return; }
+    if (!title.trim()) { addToast("Enter a poll question", "error"); return; }
+    if (choices.some((c) => !c.trim())) { addToast("Fill in all choices", "error"); return; }
     setLoading(true);
     try {
       const res = await fetch("/api/twitch/poll", {

@@ -59,6 +59,25 @@ function DashboardInner() {
     );
   }
 
+  // Show re-auth prompt if no channels loaded — token may be missing scopes
+  if (!loading && channels.length === 0) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100vh", background: "#0a0a0f", gap: 16 }}>
+        <div style={{ fontSize: 32 }}>⚠️</div>
+        <div style={{ color: "#fff", fontSize: 18, fontWeight: 700 }}>No channels found</div>
+        <div style={{ color: "rgba(232,232,240,0.5)", fontSize: 14, textAlign: "center", maxWidth: 380 }}>
+          Your session may be missing required scopes, or your account has no moderated channels yet.<br />Log out and back in to refresh your token.
+        </div>
+        <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
+          <a href="/api/auth/login" style={{ textDecoration: "none" }}>
+            <button className="btn-primary" style={{ padding: "10px 24px", borderRadius: 10, fontSize: 14 }}>🔄 Re-login with Twitch</button>
+          </a>
+          <button onClick={logout} className="btn-ghost" style={{ padding: "10px 20px", fontSize: 14 }}>Logout</button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "#0a0a0f", overflow: "hidden" }}>
       {/* Top bar */}

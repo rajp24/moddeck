@@ -32,15 +32,30 @@ export function ChannelProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
-    fetch("/api/twitch/moderated-channels")
-      .then((r) => r.json())
-      .then((data) => {
-        const list = Array.isArray(data) ? data : [];
-        setChannels(list);
-        if (list.length > 0) setSelectedChannel(list[0]);
-      })
-      .catch(() => setChannels([]))
-      .finally(() => setLoading(false));
+
+    Promise.all([
+      fetch("/api/twitch/moderated-channels").then(r => r.json()).catch(() => []),
+      fetch(`/api/twitch/users?id=${user.user_id}`).then(r => r.json()).catch(() => []),
+    ]).then(([modData, userData]) => {
+      const modList: Channel[] = Array.isArray(modData) ? modData : [];
+      const ownRaw = Array.isArray(userData) && userData[0] ? userData[0] : null;
+
+      let combined = [...modList];
+      if (ownRaw) {
+        const ownChannel: Channel = {
+          broadcaster_id: ownRaw.id,
+          broadcaster_login: ownRaw.login,
+          broadcaster_name: ownRaw.display_name,
+        };
+        // Prepend own channel if not already present
+        if (!combined.some(c => c.broadcaster_id === ownChannel.broadcaster_id)) {
+          combined = [ownChannel, ...combined];
+        }
+      }
+
+      setChannels(combined);
+      if (combined.length > 0) setSelectedChannel(combined[0]);
+    }).finally(() => setLoading(false));
   }, [user]);
 
   return (

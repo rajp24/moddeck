@@ -13,7 +13,8 @@ export default function WarnModal({ channels, onClose, defaultUsername = "" }: P
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async () => {
-    if (!username) return;
+    if (!username.trim()) { addToast("Enter a username", "error"); return; }
+    if (!channelId) { addToast("No channel selected", "error"); return; }
     setLoading(true);
     try {
       const res = await fetch("/api/twitch/warn", {
