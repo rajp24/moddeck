@@ -1,3 +1,15 @@
+## v0.1.7 · May 5, 2026
+
+**Reliable Chat Mode Updates**
+
+ModDeck now forwards Twitch chat-settings failures to the frontend instead of pretending the update succeeded, and the slow-mode toggle sends the correct payload when enabling or disabling slow mode.
+
+You can now see whether Twitch accepted a slow-mode or chat-mode change for the selected channel, and the switch will roll back if Twitch rejects it.
+
+📄 app/api/twitch/chat-settings/route.ts, components/LeftSidebar.tsx
+
+---
+
 ## v0.1.6 · May 5, 2026
 
 **Clearer Protected-User Moderation Errors**

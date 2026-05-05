@@ -30,6 +30,14 @@ const CHAT_MODE_CONTROLS = [
   { key: "unique_chat", label: "Unique Chat" },
 ];
 
+function getChatSettingsErrorMessage(data: { message?: string; error?: string } | null, status: number) {
+  const raw = data?.message || data?.error || "";
+  if (status === 401 || status === 403) {
+    return raw || "Twitch says this account cannot change chat settings for that channel. Try re-logging in or confirming moderator permissions.";
+  }
+  return raw || `Failed to update chat setting (${status})`;
+}
+
 function Section({ title }: { title: string }) {
   return (
     <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(232,232,240,0.4)", letterSpacing: 1, textTransform: "uppercase", marginBottom: 10, marginTop: 20 }}>{title}</div>
@@ -59,14 +67,24 @@ export default function LeftSidebar({ selectedChannel, onBan, onTimeout, onWarn,
 
   const handleToggle = async (setting: string, value: boolean | number) => {
     if (!selectedChannel) return;
-    setToggles((prev) => ({ ...prev, [setting]: !prev[setting as keyof typeof prev] }));
+    const previousToggles = toggles;
+    const nextEnabled = setting === "slow_mode" ? Number(value) > 0 : Boolean(value);
+    setToggles((prev) => ({ ...prev, [setting]: nextEnabled }));
     try {
-      await fetch("/api/twitch/chat-settings", {
+      const res = await fetch("/api/twitch/chat-settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ broadcaster_id: selectedChannel.broadcaster_id, setting, value }),
       });
+      const data = await res.json();
+      if (!res.ok) {
+        setToggles(previousToggles);
+        addToast(getChatSettingsErrorMessage(data, res.status), "error");
+        return;
+      }
+      addToast("Chat setting updated", "success");
     } catch {
+      setToggles(previousToggles);
       addToast("Failed to update setting", "error");
     }
   };

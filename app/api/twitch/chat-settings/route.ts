@@ -12,6 +12,7 @@ export async function GET(req: NextRequest) {
   );
   const data = await res.json();
   console.log("Chat settings GET:", res.status, JSON.stringify(data));
+  if (!res.ok) return NextResponse.json(data, { status: res.status });
   return NextResponse.json(data.data?.[0] || {});
 }
 
@@ -24,7 +25,9 @@ export async function PATCH(req: NextRequest) {
 
   switch (setting) {
     case "slow_mode":
-      body = { slow_mode: value > 0, slow_mode_wait_time: value };
+      body = value > 0
+        ? { slow_mode: true, slow_mode_wait_time: value }
+        : { slow_mode: false };
       break;
     case "followers_only":
       body = { follower_mode: value !== false, follower_mode_duration: value === false ? 0 : (value || 0) };
@@ -48,5 +51,6 @@ export async function PATCH(req: NextRequest) {
     { method: "PATCH", body: JSON.stringify(body) }
   );
   const data = await res.json();
-  return NextResponse.json(data);
+  console.log("Chat settings PATCH:", res.status, JSON.stringify(data));
+  return NextResponse.json(data, { status: res.status });
 }
