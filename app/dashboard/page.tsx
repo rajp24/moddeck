@@ -147,7 +147,9 @@ function DashboardInner() {
         {/* Left sidebar */}
         <div className="left-sidebar" style={{ borderRight: "1px solid rgba(255,255,255,0.07)", overflow: "hidden" }}>
           <LeftSidebar
+            channels={channels}
             selectedChannel={selectedChannel}
+            onSelectChannel={setSelectedChannel}
             onBan={() => openModal("ban")}
             onTimeout={() => openModal("timeout")}
             onWarn={() => openModal("warn")}

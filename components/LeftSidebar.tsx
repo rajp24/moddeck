@@ -4,7 +4,9 @@ import { Channel } from "@/context/ChannelContext";
 import { useToastContext } from "@/context/ToastContext";
 
 interface Props {
+  channels: Channel[];
   selectedChannel: Channel | null;
+  onSelectChannel: (channel: Channel | null) => void;
   onBan: () => void;
   onTimeout: () => void;
   onWarn: () => void;
@@ -44,7 +46,7 @@ function Section({ title }: { title: string }) {
   );
 }
 
-export default function LeftSidebar({ selectedChannel, onBan, onTimeout, onWarn, onAnnounce, onPoll, onPrediction }: Props) {
+export default function LeftSidebar({ channels, selectedChannel, onSelectChannel, onBan, onTimeout, onWarn, onAnnounce, onPoll, onPrediction }: Props) {
   const { addToast } = useToastContext();
   const [toggles, setToggles] = useState({
     slow_mode: false,
@@ -63,6 +65,10 @@ export default function LeftSidebar({ selectedChannel, onBan, onTimeout, onWarn,
       announce: onAnnounce, poll: onPoll, predict: onPrediction,
     };
     map[action]?.();
+  };
+
+  const handleControlChannelChange = (channelId: string) => {
+    onSelectChannel(channels.find((channel) => channel.broadcaster_id === channelId) || null);
   };
 
   const handleToggle = async (setting: string, value: boolean | number) => {
@@ -151,6 +157,18 @@ export default function LeftSidebar({ selectedChannel, onBan, onTimeout, onWarn,
         ))}
       </div>
 
+      <Section title="Control Channel" />
+      <select
+        value={selectedChannel?.broadcaster_id || ""}
+        onChange={(event) => handleControlChannelChange(event.target.value)}
+        style={{ fontSize: 12, padding: "8px 10px", marginBottom: 4 }}
+      >
+        <option value="">Choose a channel...</option>
+        {channels.map((channel) => (
+          <option key={channel.broadcaster_id} value={channel.broadcaster_id}>{channel.broadcaster_name}</option>
+        ))}
+      </select>
+
       {selectedChannel ? (
         <>
           <Section title="Chat Mode" />
@@ -191,7 +209,7 @@ export default function LeftSidebar({ selectedChannel, onBan, onTimeout, onWarn,
         </>
       ) : (
         <div style={{ marginTop: 20, padding: 12, borderRadius: 10, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(232,232,240,0.55)", fontSize: 13, lineHeight: 1.4 }}>
-          Select one channel to edit chat mode or blocked terms.
+          Choose one channel to edit chat mode or blocked terms.
         </div>
       )}
     </div>

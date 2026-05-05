@@ -1,3 +1,15 @@
+## v0.1.11 · May 5, 2026
+
+**Direct Channel Control Selector**
+
+ModDeck now includes an explicit Control Channel dropdown in the left sidebar so chat-mode and blocked-term controls can be pointed at any channel you moderate instead of relying only on the top page selection.
+
+You can now choose another channel directly before toggling slow mode, followers-only, sub-only, emote-only, unique chat, or blocked terms.
+
+📄 app/dashboard/page.tsx, components/LeftSidebar.tsx
+
+---
+
 ## v0.1.9 · May 5, 2026
 
 **Moderator Ban Notice**
