@@ -1,0 +1,36 @@
+#!/bin/sh
+# ModDeck — bump patch version before every commit.
+
+PROJECT="$(git rev-parse --show-toplevel 2>/dev/null)"
+if [ -z "$PROJECT" ]; then exit 0; fi
+
+PYTHON=$(command -v python3 2>/dev/null)
+if [ -z "$PYTHON" ]; then PYTHON=$(command -v python 2>/dev/null); fi
+if [ -z "$PYTHON" ]; then exit 0; fi
+
+VERSION_FILE="$PROJECT/version.json"
+
+if [ ! -f "$VERSION_FILE" ]; then
+  printf '{"version":"0.1.0"}\n' > "$VERSION_FILE"
+fi
+
+current=$("$PYTHON" -c "import json; print(json.load(open('$VERSION_FILE'))['version'])" 2>/dev/null)
+if [ -z "$current" ]; then current="0.1.0"; fi
+
+new_version=$("$PYTHON" -c "
+v='$current'.split('.')
+v[2] = str(int(v[2]) + 1)
+print('.'.join(v))
+" 2>/dev/null)
+
+if [ -z "$new_version" ]; then exit 0; fi
+
+"$PYTHON" -c "
+import json
+with open('$VERSION_FILE', 'w') as f:
+    json.dump({'version': '$new_version'}, f, separators=(',', ':'))
+    f.write('\n')
+"
+
+git -C "$PROJECT" add "$VERSION_FILE"
+echo "Version bumped: $current -> $new_version"

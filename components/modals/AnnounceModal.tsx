@@ -11,13 +11,13 @@ const COLORS = [
   { label: "Purple", value: "purple", bg: "#a855f7" },
 ];
 
-interface Props { channels: Channel[]; onClose: () => void; }
+interface Props { channels: Channel[]; onClose: () => void; defaultChannelId?: string; }
 
-export default function AnnounceModal({ channels, onClose }: Props) {
+export default function AnnounceModal({ channels, onClose, defaultChannelId }: Props) {
   const { addToast } = useToastContext();
   const [message, setMessage] = useState("");
   const [color, setColor] = useState("primary");
-  const [channelId, setChannelId] = useState("all");
+  const [channelId, setChannelId] = useState(defaultChannelId || "all");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async () => {

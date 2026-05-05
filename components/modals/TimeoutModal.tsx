@@ -12,14 +12,14 @@ const DURATIONS = [
   { label: "24h", value: 86400 },
 ];
 
-interface Props { channels: Channel[]; onClose: () => void; defaultUsername?: string; }
+interface Props { channels: Channel[]; onClose: () => void; defaultUsername?: string; defaultChannelId?: string; }
 
-export default function TimeoutModal({ channels, onClose, defaultUsername = "" }: Props) {
+export default function TimeoutModal({ channels, onClose, defaultUsername = "", defaultChannelId }: Props) {
   const { addToast } = useToastContext();
   const [username, setUsername] = useState(defaultUsername);
   const [duration, setDuration] = useState(300);
   const [reason, setReason] = useState("");
-  const [channelId, setChannelId] = useState(channels[0]?.broadcaster_id || "");
+  const [channelId, setChannelId] = useState(defaultChannelId || channels[0]?.broadcaster_id || "");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async () => {

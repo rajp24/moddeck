@@ -3,13 +3,13 @@ import { useState } from "react";
 import { Channel } from "@/context/ChannelContext";
 import { useToastContext } from "@/context/ToastContext";
 
-interface Props { channels: Channel[]; onClose: () => void; defaultUsername?: string; }
+interface Props { channels: Channel[]; onClose: () => void; defaultUsername?: string; defaultChannelId?: string; }
 
-export default function WarnModal({ channels, onClose, defaultUsername = "" }: Props) {
+export default function WarnModal({ channels, onClose, defaultUsername = "", defaultChannelId }: Props) {
   const { addToast } = useToastContext();
   const [username, setUsername] = useState(defaultUsername);
   const [reason, setReason] = useState("");
-  const [channelId, setChannelId] = useState(channels[0]?.broadcaster_id || "");
+  const [channelId, setChannelId] = useState(defaultChannelId || channels[0]?.broadcaster_id || "");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async () => {

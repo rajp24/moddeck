@@ -10,9 +10,9 @@ interface Props {
   messages: ChatMessage[];
   sendMessage: (channel: string, text: string) => void;
   connected: boolean;
-  onWarn: (username: string) => void;
-  onTimeout: (username: string) => void;
-  onBan: (username: string) => void;
+  onWarn: (username: string, channelLogin?: string) => void;
+  onTimeout: (username: string, channelLogin?: string) => void;
+  onBan: (username: string, channelLogin?: string) => void;
 }
 
 const CHANNEL_COLORS = ["#9147ff", "#00d4aa", "#3b82f6", "#f97316", "#ec4899"];
@@ -317,9 +317,9 @@ export default function CenterPanel({ channels, selectedChannel, messages, sendM
                     zIndex: 10,
                   }}>
                     {[
-                      { label: "Warn", color: "#fde047", action: () => onWarn(msg.username) },
-                      { label: "Timeout", color: "#fb923c", action: () => onTimeout(msg.username) },
-                      { label: "Ban", color: "#f87171", action: () => onBan(msg.username) },
+                      { label: "Warn", color: "#fde047", action: () => onWarn(msg.username, msg.channel) },
+                      { label: "Timeout", color: "#fb923c", action: () => onTimeout(msg.username, msg.channel) },
+                      { label: "Ban", color: "#f87171", action: () => onBan(msg.username, msg.channel) },
                       { label: "Del", color: "rgba(232,232,240,0.5)", action: () => handleDeleteMsg(msg) },
                     ].map((btn) => (
                       <button key={btn.label} onClick={(e) => { e.stopPropagation(); btn.action(); }} style={{

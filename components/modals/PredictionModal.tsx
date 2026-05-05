@@ -5,15 +5,15 @@ import { useToastContext } from "@/context/ToastContext";
 
 const WINDOWS = [{ label: "30s", value: 30 }, { label: "1m", value: 60 }, { label: "2m", value: 120 }, { label: "5m", value: 300 }];
 
-interface Props { channels: Channel[]; onClose: () => void; }
+interface Props { channels: Channel[]; onClose: () => void; defaultChannelId?: string; }
 
-export default function PredictionModal({ channels, onClose }: Props) {
+export default function PredictionModal({ channels, onClose, defaultChannelId }: Props) {
   const { addToast } = useToastContext();
   const [title, setTitle] = useState("");
   const [outcomeA, setOutcomeA] = useState("");
   const [outcomeB, setOutcomeB] = useState("");
   const [window_, setWindow] = useState(60);
-  const [channelId, setChannelId] = useState(channels[0]?.broadcaster_id || "");
+  const [channelId, setChannelId] = useState(defaultChannelId || channels[0]?.broadcaster_id || "");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async () => {

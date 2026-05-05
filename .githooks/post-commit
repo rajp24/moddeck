@@ -1,0 +1,91 @@
+#!/bin/sh
+# ModDeck — create a Trello card in ModDeck LOGS on every commit.
+
+if [ -n "$MODDECK_HOOK_RUNNING" ]; then exit 0; fi
+export MODDECK_HOOK_RUNNING=1
+
+PROJECT="$(git rev-parse --show-toplevel 2>/dev/null)"
+if [ -z "$PROJECT" ]; then exit 0; fi
+
+PYTHON=$(command -v python3 2>/dev/null)
+if [ -z "$PYTHON" ]; then PYTHON=$(command -v python 2>/dev/null); fi
+if [ -z "$PYTHON" ]; then exit 0; fi
+
+VERSION_FILE="$PROJECT/version.json"
+ENV_FILE="$PROJECT/.env.local"
+TRELLO_API="https://api.trello.com/1"
+
+if [ -f "$ENV_FILE" ]; then
+  export $(grep -v '^#' "$ENV_FILE" | xargs)
+fi
+
+TRELLO_KEY="${TRELLO_API_KEY:-098d975c5bf77529da70e0b736e3bb94}"
+TRELLO_TOK="${TRELLO_TOKEN:-ATTAad84973b962f78c8735dc933a66e8169bc59b3e934d09f3187f9fd13acae4e58F5287A0C}"
+LIST_ID="${TRELLO_LIST_ID:-69fa4d37500509eb7cc0481a}"
+
+COMMIT_HASH=$(git -C "$PROJECT" rev-parse --short HEAD 2>/dev/null)
+COMMIT_MSG=$(git -C "$PROJECT" log -1 --pretty=%s 2>/dev/null)
+COMMIT_DATE=$(date "+%Y-%m-%d %H:%M ET")
+COMMIT_FILES=$(git -C "$PROJECT" diff --name-only HEAD~1 2>/dev/null | head -20 | tr '\n' ',' | sed 's/,$//' | sed 's/,/, /g')
+COMMIT_VERSION=$("$PYTHON" -c "import json; print('v'+json.load(open('$VERSION_FILE'))['version'])" 2>/dev/null)
+
+if [ -z "$COMMIT_VERSION" ]; then
+  COMMIT_VERSION="$COMMIT_HASH"
+fi
+
+if [ -n "$COMMIT_VERSION" ]; then
+  if ! git -C "$PROJECT" rev-parse "$COMMIT_VERSION" >/dev/null 2>&1; then
+    git -C "$PROJECT" tag "$COMMIT_VERSION"
+    echo "Tagged: $COMMIT_VERSION"
+  fi
+fi
+
+DESC=$("$PYTHON" "$PROJECT/scripts/trello_desc.py" "$COMMIT_VERSION" "$COMMIT_HASH" "$COMMIT_DATE" "$COMMIT_FILES" "$PROJECT" 2>/dev/null)
+if [ -z "$DESC" ]; then
+  DESC="📝 $COMMIT_MSG
+🔧 Commit: $COMMIT_HASH
+📅 Date: $COMMIT_DATE
+📁 Files: $COMMIT_FILES"
+fi
+
+RESPONSE_FILE=$(mktemp 2>/dev/null || echo "/tmp/moddeck-trello-response-$$.json")
+
+HTTP_CODE=$(curl -sS -o "$RESPONSE_FILE" -w "%{http_code}" -X POST "$TRELLO_API/cards" \
+  --connect-timeout 10 \
+  --max-time 30 \
+  --retry 5 \
+  --retry-delay 2 \
+  --retry-all-errors \
+  --data-urlencode "name=$COMMIT_VERSION" \
+  --data-urlencode "desc=$DESC" \
+  --data-urlencode "idList=$LIST_ID" \
+  --data-urlencode "pos=top" \
+  --data-urlencode "key=$TRELLO_KEY" \
+  --data-urlencode "token=$TRELLO_TOK" 2>"$RESPONSE_FILE.err")
+
+CARD_URL=$("$PYTHON" -c "
+import json, sys
+try:
+    card = json.load(open(sys.argv[1]))
+except Exception:
+    card = {}
+if card.get('id'):
+    print(card.get('shortUrl') or card.get('url') or card.get('id') or '')
+" "$RESPONSE_FILE" 2>/dev/null)
+
+case "$HTTP_CODE" in
+  2??)
+    if [ -n "$CARD_URL" ]; then
+      echo "Trello: logged $COMMIT_VERSION ($CARD_URL)"
+    else
+      echo "Trello: logged $COMMIT_VERSION"
+    fi
+    ;;
+  *)
+    echo "Trello: failed to log $COMMIT_VERSION (HTTP $HTTP_CODE)"
+    sed -n '1,3p' "$RESPONSE_FILE.err" 2>/dev/null
+    sed -n '1,3p' "$RESPONSE_FILE" 2>/dev/null
+    ;;
+esac
+
+rm -f "$RESPONSE_FILE" "$RESPONSE_FILE.err"

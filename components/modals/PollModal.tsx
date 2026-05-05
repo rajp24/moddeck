@@ -5,14 +5,14 @@ import { useToastContext } from "@/context/ToastContext";
 
 const DURATIONS = [{ label: "1m", value: 60 }, { label: "2m", value: 120 }, { label: "5m", value: 300 }, { label: "10m", value: 600 }];
 
-interface Props { channels: Channel[]; onClose: () => void; }
+interface Props { channels: Channel[]; onClose: () => void; defaultChannelId?: string; }
 
-export default function PollModal({ channels, onClose }: Props) {
+export default function PollModal({ channels, onClose, defaultChannelId }: Props) {
   const { addToast } = useToastContext();
   const [title, setTitle] = useState("");
   const [choices, setChoices] = useState(["", ""]);
   const [duration, setDuration] = useState(120);
-  const [channelId, setChannelId] = useState(channels[0]?.broadcaster_id || "");
+  const [channelId, setChannelId] = useState(defaultChannelId || channels[0]?.broadcaster_id || "");
   const [loading, setLoading] = useState(false);
 
   const addChoice = () => choices.length < 5 && setChoices([...choices, ""]);
