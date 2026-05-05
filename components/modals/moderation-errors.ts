@@ -26,6 +26,10 @@ export function getModerationErrorMessage(action: string, data: { message?: stri
   const lower = raw.toLowerCase();
 
   if (lower.includes("may not be banned/timed out") || lower.includes("may not be banned")) {
+    if (action === "Ban" || action === "Timeout") {
+      return `${action} failed: Twitch does not allow banning or timing out moderators. If this person is a mod, remove their mod status first, then try again.`;
+    }
+
     return `${action} failed: Twitch will not let this account moderate that user. They may be the broadcaster, you, a moderator, or otherwise protected in this channel.`;
   }
 

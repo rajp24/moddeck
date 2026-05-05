@@ -1,3 +1,15 @@
+## v0.1.9 · May 5, 2026
+
+**Moderator Ban Notice**
+
+ModDeck now explains that Twitch does not allow banning or timing out moderators when Twitch rejects those moderation actions with a protected-user response.
+
+You can now tell when a failed ban or timeout likely means the target is a mod and needs to be unmodded first.
+
+📄 components/modals/moderation-errors.ts
+
+---
+
 ## v0.1.7 · May 5, 2026
 
 **Reliable Chat Mode Updates**
