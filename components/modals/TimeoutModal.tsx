@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Channel } from "@/context/ChannelContext";
 import { useToastContext } from "@/context/ToastContext";
+import { getModerationErrorMessage, getProtectedTargetMessage } from "./moderation-errors";
 
 const DURATIONS = [
   { label: "1m", value: 60 },
@@ -25,6 +26,9 @@ export default function TimeoutModal({ channels, onClose, defaultUsername = "", 
   const handleSubmit = async () => {
     if (!username.trim()) { addToast("Enter a username", "error"); return; }
     if (!channelId) { addToast("No channel selected", "error"); return; }
+    const ch = channels.find((c) => c.broadcaster_id === channelId);
+    const protectedMessage = getProtectedTargetMessage(username, ch);
+    if (protectedMessage) { addToast(protectedMessage, "error"); return; }
     setLoading(true);
     try {
       const res = await fetch("/api/twitch/timeout", {
@@ -32,8 +36,9 @@ export default function TimeoutModal({ channels, onClose, defaultUsername = "", 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ broadcaster_id: channelId, user_id: username, duration, reason }),
       });
+      const data = await res.json();
       if (res.ok) { addToast(`⏱ ${username} timed out`, "success"); onClose(); }
-      else addToast("Timeout failed.", "error");
+      else addToast(getModerationErrorMessage("Timeout", data, res.status), "error");
     } finally { setLoading(false); }
   };
 

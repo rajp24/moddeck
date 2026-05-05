@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Channel } from "@/context/ChannelContext";
 import { useToastContext } from "@/context/ToastContext";
+import { getModerationErrorMessage, getProtectedTargetMessage } from "./moderation-errors";
 
 interface Props { channels: Channel[]; onClose: () => void; defaultUsername?: string; defaultChannelId?: string; }
 
@@ -15,6 +16,9 @@ export default function WarnModal({ channels, onClose, defaultUsername = "", def
   const handleSubmit = async () => {
     if (!username.trim()) { addToast("Enter a username", "error"); return; }
     if (!channelId) { addToast("No channel selected", "error"); return; }
+    const ch = channels.find((c) => c.broadcaster_id === channelId);
+    const protectedMessage = getProtectedTargetMessage(username, ch);
+    if (protectedMessage) { addToast(protectedMessage, "error"); return; }
     setLoading(true);
     try {
       const res = await fetch("/api/twitch/warn", {
@@ -22,8 +26,9 @@ export default function WarnModal({ channels, onClose, defaultUsername = "", def
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ broadcaster_id: channelId, user_id: username, reason }),
       });
+      const data = await res.json();
       if (res.ok) { addToast(`⚠️ Warning sent to ${username}`, "success"); onClose(); }
-      else addToast("Warning failed.", "error");
+      else addToast(getModerationErrorMessage("Warning", data, res.status), "error");
     } finally { setLoading(false); }
   };
 

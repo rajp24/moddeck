@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Channel } from "@/context/ChannelContext";
 import { useToastContext } from "@/context/ToastContext";
+import { getModerationErrorMessage, getProtectedTargetMessage } from "./moderation-errors";
 
 interface Props {
   channels: Channel[];
@@ -20,9 +21,11 @@ export default function BanModal({ channels, onClose, defaultUsername = "", defa
   const handleSubmit = async () => {
     if (!username.trim()) { addToast("Enter a username", "error"); return; }
     if (!channelId) { addToast("No channel selected", "error"); return; }
+    const ch = channels.find((c) => c.broadcaster_id === channelId);
+    const protectedMessage = getProtectedTargetMessage(username, ch);
+    if (protectedMessage) { addToast(protectedMessage, "error"); return; }
     setLoading(true);
     try {
-      const ch = channels.find((c) => c.broadcaster_id === channelId);
       const res = await fetch("/api/twitch/ban", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -34,7 +37,7 @@ export default function BanModal({ channels, onClose, defaultUsername = "", defa
         addToast(`🔨 ${username} banned from ${ch?.broadcaster_name}`, "success");
         onClose();
       } else {
-        addToast(`Ban failed: ${data?.message || data?.error || res.status}`, "error");
+        addToast(getModerationErrorMessage("Ban", data, res.status), "error");
       }
     } finally {
       setLoading(false);
