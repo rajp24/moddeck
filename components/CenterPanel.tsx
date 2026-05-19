@@ -1,18 +1,18 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { Channel } from "@/context/ChannelContext";
+import { useActiveChannel } from "@/context/ActiveChannelContext";
 import { ChatMessage } from "@/hooks/useTmiClient";
 import { useToastContext } from "@/context/ToastContext";
 
 interface Props {
   channels: Channel[];
-  selectedChannel: Channel | null;
   messages: ChatMessage[];
   sendMessage: (channel: string, text: string) => void;
   connected: boolean;
-  onWarn: (username: string, channelLogin?: string) => void;
-  onTimeout: (username: string, channelLogin?: string) => void;
-  onBan: (username: string, channelLogin?: string) => void;
+  onWarn: (username: string) => void;
+  onTimeout: (username: string) => void;
+  onBan: (username: string) => void;
 }
 
 const CHANNEL_COLORS = ["#9147ff", "#00d4aa", "#3b82f6", "#f97316", "#ec4899"];
@@ -41,12 +41,12 @@ function timeAgo(d: Date) {
   return `${Math.floor(s / 3600)}h ago`;
 }
 
-export default function CenterPanel({ channels, selectedChannel, messages, sendMessage, connected, onWarn, onTimeout, onBan }: Props) {
+export default function CenterPanel({ channels, messages, sendMessage, connected, onWarn, onTimeout, onBan }: Props) {
   const { addToast } = useToastContext();
+  // Single source of truth — reading AND writing active channel from context
+  const { activeChannel, setActiveChannel } = useActiveChannel();
   const [focusedCell, setFocusedCell] = useState<string | null>(null);
-  const [chatFilter, setChatFilter] = useState("all");
   const [chatInput, setChatInput] = useState("");
-  const [sendToChannel, setSendToChannel] = useState(channels[0]?.broadcaster_login || "");
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [hoveredMsg, setHoveredMsg] = useState<string | null>(null);
   const [gridCollapsed, setGridCollapsed] = useState(false);
@@ -66,10 +66,6 @@ export default function CenterPanel({ channels, selectedChannel, messages, sendM
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  useEffect(() => {
-    if (channels[0]) setSendToChannel(channels[0].broadcaster_login);
-  }, [channels]);
-
   // Fetch live status
   useEffect(() => {
     if (channels.length === 0) return;
@@ -87,20 +83,23 @@ export default function CenterPanel({ channels, selectedChannel, messages, sendM
       .catch(() => {});
   }, [channels]);
 
-  // Unread count tracking
+  // Unread count: increment for channels other than the active one
   useEffect(() => {
     if (messages.length === 0) return;
     const latest = messages[messages.length - 1];
-    if (latest && chatFilter !== latest.channel && chatFilter !== "all") {
+    if (latest && latest.channel !== activeChannel?.broadcaster_login) {
       setUnreadCounts(prev => ({ ...prev, [latest.channel]: (prev[latest.channel] || 0) + 1 }));
     }
   }, [messages.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const filteredMessages = chatFilter === "all" ? messages : messages.filter((m) => m.channel === chatFilter);
+  // Filter: "all" when no activeChannel, otherwise show only that channel
+  const filteredMessages = activeChannel
+    ? messages.filter(m => m.channel === activeChannel.broadcaster_login)
+    : messages;
 
   const handleSend = () => {
-    if (!chatInput.trim() || !sendToChannel) return;
-    sendMessage(sendToChannel, chatInput);
+    if (!chatInput.trim() || !activeChannel) return;
+    sendMessage(activeChannel.broadcaster_login, chatInput);
     setChatInput("");
   };
 
@@ -261,25 +260,27 @@ export default function CenterPanel({ channels, selectedChannel, messages, sendM
 
       {/* Chat Area */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", padding: "4px 8px 8px" }}>
-        {/* Filter tabs */}
+        {/* Chat channel tabs — read/write from ActiveChannelContext */}
         <div style={{ display: "flex", gap: 6, padding: "6px 0", overflowX: "auto", flexShrink: 0 }}>
-          <div className="pill" onClick={() => setChatFilter("all")} style={{
-            background: chatFilter === "all" ? "var(--accent)" : "rgba(255,255,255,0.07)",
-            color: chatFilter === "all" ? "#fff" : "rgba(232,232,240,0.7)",
-          }}>All</div>
-          {channels.map((ch, i) => (
-            <div key={ch.broadcaster_id} className="pill" onClick={() => { setChatFilter(ch.broadcaster_login); setUnreadCounts(prev => ({ ...prev, [ch.broadcaster_login]: 0 })); }} style={{
-              background: chatFilter === ch.broadcaster_login ? CHANNEL_COLORS[i % CHANNEL_COLORS.length] + "40" : "rgba(255,255,255,0.07)",
-              color: CHANNEL_COLORS[i % CHANNEL_COLORS.length],
-            }}>
-              {ch.broadcaster_name}
-              {(unreadCounts[ch.broadcaster_login] || 0) > 0 && (
-                <span style={{ background: "#9147ff", color: "#fff", borderRadius: "50%", fontSize: 10, padding: "1px 5px", marginLeft: 4, minWidth: 16, textAlign: "center" }}>
-                  {unreadCounts[ch.broadcaster_login]}
-                </span>
-              )}
-            </div>
-          ))}
+          {channels.map((ch, i) => {
+            const isActive = activeChannel?.broadcaster_id === ch.broadcaster_id;
+            return (
+              <div key={ch.broadcaster_id} className="pill"
+                onClick={() => { setActiveChannel(ch); setUnreadCounts(prev => ({ ...prev, [ch.broadcaster_login]: 0 })); }}
+                style={{
+                  background: isActive ? CHANNEL_COLORS[i % CHANNEL_COLORS.length] + "30" : "rgba(255,255,255,0.07)",
+                  color: CHANNEL_COLORS[i % CHANNEL_COLORS.length],
+                  border: isActive ? `1px solid ${CHANNEL_COLORS[i % CHANNEL_COLORS.length]}60` : "1px solid transparent",
+                }}>
+                {ch.broadcaster_name}
+                {(unreadCounts[ch.broadcaster_login] || 0) > 0 && (
+                  <span style={{ background: "#9147ff", color: "#fff", borderRadius: "50%", fontSize: 10, padding: "1px 5px", marginLeft: 4, minWidth: 16, textAlign: "center" }}>
+                    {unreadCounts[ch.broadcaster_login]}
+                  </span>
+                )}
+              </div>
+            );
+          })}
           <div style={{ marginLeft: "auto", fontSize: 12, color: connected ? "#4ade80" : "#f87171", alignSelf: "center", flexShrink: 0 }}>
             {connected ? "● Connected" : "● Disconnected"}
           </div>
@@ -317,9 +318,9 @@ export default function CenterPanel({ channels, selectedChannel, messages, sendM
                     zIndex: 10,
                   }}>
                     {[
-                      { label: "Warn", color: "#fde047", action: () => onWarn(msg.username, msg.channel) },
-                      { label: "Timeout", color: "#fb923c", action: () => onTimeout(msg.username, msg.channel) },
-                      { label: "Ban", color: "#f87171", action: () => onBan(msg.username, msg.channel) },
+                      { label: "Warn", color: "#fde047", action: () => onWarn(msg.username) },
+                      { label: "Timeout", color: "#fb923c", action: () => onTimeout(msg.username) },
+                      { label: "Ban", color: "#f87171", action: () => onBan(msg.username) },
                       { label: "Del", color: "rgba(232,232,240,0.5)", action: () => handleDeleteMsg(msg) },
                     ].map((btn) => (
                       <button key={btn.label} onClick={(e) => { e.stopPropagation(); btn.action(); }} style={{
@@ -335,14 +336,28 @@ export default function CenterPanel({ channels, selectedChannel, messages, sendM
           <div ref={chatEndRef} />
         </div>
 
-        {/* Message input */}
+        {/* Message input — channel comes from ActiveChannelContext */}
         <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-          <select value={sendToChannel} onChange={(e) => setSendToChannel(e.target.value)} style={{ width: "auto", flex: "0 0 auto", padding: "8px 10px", fontSize: 12 }}>
-            {channels.map((c) => <option key={c.broadcaster_id} value={c.broadcaster_login}>{c.broadcaster_name}</option>)}
-          </select>
-          <input type="text" value={chatInput} onChange={(e) => setChatInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSend()}
-            placeholder="Send a message..." style={{ flex: 1 }} />
+          {/* Channel pill — clicking cycles to next channel */}
+          <div className="pill" style={{
+            flexShrink: 0, cursor: "pointer", fontSize: 12,
+            background: "rgba(145,71,255,0.15)", color: "#c084fc",
+            border: "1px solid rgba(145,71,255,0.3)",
+            padding: "0 12px", display: "flex", alignItems: "center",
+          }}
+            onClick={() => {
+              if (channels.length < 2) return;
+              const idx = channels.findIndex(c => c.broadcaster_id === activeChannel?.broadcaster_id);
+              setActiveChannel(channels[(idx + 1) % channels.length]);
+            }}
+            title="Click to switch channel"
+          >
+            → {activeChannel?.broadcaster_name || "No channel"}
+          </div>
+          <input type="text" value={chatInput} onChange={e => setChatInput(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && handleSend()}
+            placeholder={`Message ${activeChannel?.broadcaster_name || "..."}`}
+            style={{ flex: 1 }} />
           <button className="btn-primary" onClick={handleSend} style={{ padding: "8px 16px", borderRadius: 10, flexShrink: 0 }}>Send</button>
         </div>
       </div>

@@ -1,12 +1,11 @@
 "use client";
 import { useState, useEffect } from "react";
 import { Channel } from "@/context/ChannelContext";
+import { useActiveChannel } from "@/context/ActiveChannelContext";
 import { useToastContext } from "@/context/ToastContext";
 
 interface Props {
   channels: Channel[];
-  selectedChannel: Channel | null;
-  onSelectChannel: (channel: Channel | null) => void;
   onBan: () => void;
   onTimeout: () => void;
   onWarn: () => void;
@@ -35,7 +34,7 @@ const CHAT_MODE_CONTROLS = [
 function getChatSettingsErrorMessage(data: { message?: string; error?: string } | null, status: number) {
   const raw = data?.message || data?.error || "";
   if (status === 401 || status === 403) {
-    return raw || "Twitch says this account cannot change chat settings for that channel. Try re-logging in or confirming moderator permissions.";
+    return raw || "Twitch says this account cannot change chat settings for that channel. Try re-logging or confirming moderator permissions.";
   }
   return raw || `Failed to update chat setting (${status})`;
 }
@@ -46,14 +45,14 @@ function Section({ title }: { title: string }) {
   );
 }
 
-export default function LeftSidebar({ channels, selectedChannel, onSelectChannel, onBan, onTimeout, onWarn, onAnnounce, onPoll, onPrediction }: Props) {
+export default function LeftSidebar({ channels, onBan, onTimeout, onWarn, onAnnounce, onPoll, onPrediction }: Props) {
   const { addToast } = useToastContext();
+  // Single source of truth for the active channel
+  const { activeChannel, setActiveChannel } = useActiveChannel();
+
   const [toggles, setToggles] = useState({
-    slow_mode: false,
-    followers_only: false,
-    sub_only: false,
-    emote_only: false,
-    unique_chat: false,
+    slow_mode: false, followers_only: false, sub_only: false,
+    emote_only: false, unique_chat: false,
   });
   const [slowSeconds, setSlowSeconds] = useState(30);
   const [blockedTerms, setBlockedTerms] = useState<{ id: string; text: string }[]>([]);
@@ -67,38 +66,34 @@ export default function LeftSidebar({ channels, selectedChannel, onSelectChannel
     map[action]?.();
   };
 
-  const handleControlChannelChange = (channelId: string) => {
-    onSelectChannel(channels.find((channel) => channel.broadcaster_id === channelId) || null);
-  };
-
   const handleToggle = async (setting: string, value: boolean | number) => {
-    if (!selectedChannel) return;
-    const previousToggles = toggles;
+    if (!activeChannel) { addToast("Select a channel first", "error"); return; }
+    const previous = { ...toggles };
     const nextEnabled = setting === "slow_mode" ? Number(value) > 0 : Boolean(value);
-    setToggles((prev) => ({ ...prev, [setting]: nextEnabled }));
+    setToggles(prev => ({ ...prev, [setting]: nextEnabled }));
     try {
       const res = await fetch("/api/twitch/chat-settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ broadcaster_id: selectedChannel.broadcaster_id, setting, value }),
+        body: JSON.stringify({ broadcaster_id: activeChannel.broadcaster_id, setting, value }),
       });
       const data = await res.json();
       if (!res.ok) {
-        setToggles(previousToggles);
+        setToggles(previous);
         addToast(getChatSettingsErrorMessage(data, res.status), "error");
         return;
       }
       addToast("Chat setting updated", "success");
     } catch {
-      setToggles(previousToggles);
+      setToggles(previous);
       addToast("Failed to update setting", "error");
     }
   };
 
-  // Fetch real chat settings when selectedChannel changes
+  // Fetch real chat settings whenever activeChannel changes
   useEffect(() => {
-    if (!selectedChannel) return;
-    fetch(`/api/twitch/chat-settings?broadcaster_id=${selectedChannel.broadcaster_id}`)
+    if (!activeChannel) return;
+    fetch(`/api/twitch/chat-settings?broadcaster_id=${activeChannel.broadcaster_id}`)
       .then(r => r.json())
       .then(data => {
         if (data && typeof data === "object" && !data.error) {
@@ -113,35 +108,35 @@ export default function LeftSidebar({ channels, selectedChannel, onSelectChannel
         }
       })
       .catch(() => {});
-  }, [selectedChannel]);
+  }, [activeChannel]);
 
   useEffect(() => {
-    if (!selectedChannel) return;
-    fetch(`/api/twitch/blocked-terms?broadcaster_id=${selectedChannel.broadcaster_id}`)
-      .then((r) => r.json())
-      .then((data) => Array.isArray(data) && setBlockedTerms(data))
+    if (!activeChannel) return;
+    fetch(`/api/twitch/blocked-terms?broadcaster_id=${activeChannel.broadcaster_id}`)
+      .then(r => r.json())
+      .then(data => Array.isArray(data) && setBlockedTerms(data))
       .catch(() => {});
-  }, [selectedChannel]);
+  }, [activeChannel]);
 
   const addTerm = async () => {
-    if (!newTerm.trim() || !selectedChannel) return;
+    if (!newTerm.trim() || !activeChannel) return;
     const res = await fetch("/api/twitch/blocked-terms", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ broadcaster_id: selectedChannel.broadcaster_id, text: newTerm }),
+      body: JSON.stringify({ broadcaster_id: activeChannel.broadcaster_id, text: newTerm }),
     });
     const data = await res.json();
-    if (data.data?.[0]) { setBlockedTerms((prev) => [...prev, data.data[0]]); setNewTerm(""); }
+    if (data.data?.[0]) { setBlockedTerms(prev => [...prev, data.data[0]]); setNewTerm(""); }
   };
 
   const deleteTerm = async (id: string) => {
-    if (!selectedChannel) return;
+    if (!activeChannel) return;
     await fetch("/api/twitch/blocked-terms", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ broadcaster_id: selectedChannel.broadcaster_id, id }),
+      body: JSON.stringify({ broadcaster_id: activeChannel.broadcaster_id, id }),
     });
-    setBlockedTerms((prev) => prev.filter((t) => t.id !== id));
+    setBlockedTerms(prev => prev.filter(t => t.id !== id));
   };
 
   return (
@@ -157,35 +152,44 @@ export default function LeftSidebar({ channels, selectedChannel, onSelectChannel
         ))}
       </div>
 
+      {/* Control Channel — single source of truth via context */}
       <Section title="Control Channel" />
       <select
-        value={selectedChannel?.broadcaster_id || ""}
-        onChange={(event) => handleControlChannelChange(event.target.value)}
-        style={{ fontSize: 12, padding: "8px 10px", marginBottom: 4 }}
+        value={activeChannel?.broadcaster_id || ""}
+        onChange={e => {
+          const ch = channels.find(c => c.broadcaster_id === e.target.value);
+          if (ch) setActiveChannel(ch);
+        }}
+        style={{ fontSize: 13, padding: "8px 10px", marginBottom: 4, borderRadius: 8 }}
       >
-        <option value="">Choose a channel...</option>
-        {channels.map((channel) => (
-          <option key={channel.broadcaster_id} value={channel.broadcaster_id}>{channel.broadcaster_name}</option>
+        {channels.length === 0 && <option value="">No channels</option>}
+        {channels.map(ch => (
+          <option key={ch.broadcaster_id} value={ch.broadcaster_id}>{ch.broadcaster_name}</option>
         ))}
       </select>
 
-      {selectedChannel ? (
+      {activeChannel ? (
         <>
           <Section title="Chat Mode" />
-          {CHAT_MODE_CONTROLS.map((t) => (
+          {CHAT_MODE_CONTROLS.map(t => (
             <div key={t.key}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 0" }}>
                 <span style={{ fontSize: 13 }}>{t.label}</span>
                 <label className="toggle">
-                  <input type="checkbox" checked={toggles[t.key as keyof typeof toggles] as boolean}
-                    onChange={() => handleToggle(t.key, t.key === "slow_mode" ? (toggles.slow_mode ? 0 : slowSeconds) : !toggles[t.key as keyof typeof toggles])} />
+                  <input type="checkbox"
+                    checked={toggles[t.key as keyof typeof toggles] as boolean}
+                    onChange={() => handleToggle(
+                      t.key,
+                      t.key === "slow_mode" ? (toggles.slow_mode ? 0 : slowSeconds) : !toggles[t.key as keyof typeof toggles]
+                    )} />
                   <span className="toggle-slider" />
                 </label>
               </div>
               {t.key === "slow_mode" && toggles.slow_mode && (
-                <select value={slowSeconds} onChange={(e) => { setSlowSeconds(Number(e.target.value)); handleToggle("slow_mode", Number(e.target.value)); }}
+                <select value={slowSeconds}
+                  onChange={e => { setSlowSeconds(Number(e.target.value)); handleToggle("slow_mode", Number(e.target.value)); }}
                   style={{ fontSize: 12, padding: "4px 8px", marginBottom: 4 }}>
-                  {[3, 10, 30, 60, 120].map((s) => <option key={s} value={s}>{s}s</option>)}
+                  {[3, 10, 30, 60, 120].map(s => <option key={s} value={s}>{s}s</option>)}
                 </select>
               )}
             </div>
@@ -193,24 +197,23 @@ export default function LeftSidebar({ channels, selectedChannel, onSelectChannel
 
           <Section title="Blocked Terms" />
           <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-            <input type="text" value={newTerm} onChange={(e) => setNewTerm(e.target.value)}
-              placeholder="Add term..." onKeyDown={(e) => e.key === "Enter" && addTerm()}
+            <input type="text" value={newTerm} onChange={e => setNewTerm(e.target.value)}
+              placeholder="Add term..." onKeyDown={e => e.key === "Enter" && addTerm()}
               style={{ fontSize: 12, padding: "6px 10px", flex: 1 }} />
             <button onClick={addTerm} className="btn-primary" style={{ padding: "6px 12px", fontSize: 12, borderRadius: 8 }}>+</button>
           </div>
-          <div style={{ maxHeight: 100, overflowY: "auto" }}>
-            {blockedTerms.map((t) => (
+          <div style={{ maxHeight: 120, overflowY: "auto" }}>
+            {blockedTerms.map(t => (
               <div key={t.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 0", fontSize: 12, borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
                 <span style={{ color: "rgba(232,232,240,0.8)" }}>{t.text}</span>
                 <button onClick={() => deleteTerm(t.id)} style={{ background: "none", border: "none", color: "#f87171", cursor: "pointer", fontSize: 14 }}>✕</button>
               </div>
             ))}
+            {blockedTerms.length === 0 && <div style={{ color: "rgba(232,232,240,0.3)", fontSize: 12, paddingTop: 4 }}>No blocked terms</div>}
           </div>
         </>
       ) : (
-        <div style={{ marginTop: 20, padding: 12, borderRadius: 10, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(232,232,240,0.55)", fontSize: 13, lineHeight: 1.4 }}>
-          Choose one channel to edit chat mode or blocked terms.
-        </div>
+        <div style={{ marginTop: 12, color: "rgba(232,232,240,0.4)", fontSize: 13 }}>Select a channel above to manage chat settings.</div>
       )}
     </div>
   );

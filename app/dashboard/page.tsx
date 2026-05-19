@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import versionData from "@/version.json";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { ChannelProvider, useChannels } from "@/context/ChannelContext";
+import { ActiveChannelProvider, useActiveChannel } from "@/context/ActiveChannelContext";
 import { ToastProvider } from "@/context/ToastContext";
 import { useTmiClient } from "@/hooks/useTmiClient";
 import LeftSidebar from "@/components/LeftSidebar";
@@ -22,11 +23,11 @@ const CHANNEL_COLORS = ["#9147ff", "#00d4aa", "#3b82f6", "#f97316", "#ec4899"];
 
 function DashboardInner() {
   const { user, loading, logout } = useAuth();
-  const { channels, selectedChannel, setSelectedChannel } = useChannels();
+  const { channels } = useChannels();
+  const { activeChannel, setActiveChannel } = useActiveChannel();
   const router = useRouter();
   const [modal, setModal] = useState<ModalType>(null);
   const [prefillUsername, setPrefillUsername] = useState("");
-  const [modalChannelId, setModalChannelId] = useState<string | undefined>(undefined);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [filterOpen, setFilterOpen] = useState(false);
   const [hiddenChannels, setHiddenChannels] = useState<Set<string>>(new Set());
@@ -45,9 +46,9 @@ function DashboardInner() {
     username: user?.user_login || null,
   });
 
-  const openModal = (type: ModalType, username = "", channelId = selectedChannel?.broadcaster_id) => {
+  // Always opens with the current activeChannel pre-selected
+  const openModal = (type: ModalType, username = "") => {
     setPrefillUsername(username);
-    setModalChannelId(channelId);
     setModal(type);
   };
 
@@ -91,15 +92,11 @@ function DashboardInner() {
           <span style={{ fontWeight: 800, fontSize: 15, color: "#fff" }}>ModDeck</span>
         </div>
 
-        <div className="pill" onClick={() => setSelectedChannel(null)} style={{
-          background: !selectedChannel ? "var(--accent)" : "rgba(255,255,255,0.07)",
-          color: !selectedChannel ? "#fff" : "rgba(232,232,240,0.7)",
-        }}>All Channels</div>
-
         {channels.map((ch, i) => (
-          <div key={ch.broadcaster_id} className="pill" onClick={() => setSelectedChannel(ch)} style={{
-            background: selectedChannel?.broadcaster_id === ch.broadcaster_id ? CHANNEL_COLORS[i % CHANNEL_COLORS.length] + "40" : "rgba(255,255,255,0.07)",
+          <div key={ch.broadcaster_id} className="pill" onClick={() => setActiveChannel(ch)} style={{
+            background: activeChannel?.broadcaster_id === ch.broadcaster_id ? CHANNEL_COLORS[i % CHANNEL_COLORS.length] + "40" : "rgba(255,255,255,0.07)",
             color: CHANNEL_COLORS[i % CHANNEL_COLORS.length],
+            border: activeChannel?.broadcaster_id === ch.broadcaster_id ? `1px solid ${CHANNEL_COLORS[i % CHANNEL_COLORS.length]}60` : "1px solid transparent",
           }}>
             <span className="live-dot" />
             {ch.broadcaster_name}
@@ -148,8 +145,6 @@ function DashboardInner() {
         <div className="left-sidebar" style={{ borderRight: "1px solid rgba(255,255,255,0.07)", overflow: "hidden" }}>
           <LeftSidebar
             channels={channels}
-            selectedChannel={selectedChannel}
-            onSelectChannel={setSelectedChannel}
             onBan={() => openModal("ban")}
             onTimeout={() => openModal("timeout")}
             onWarn={() => openModal("warn")}
@@ -163,38 +158,36 @@ function DashboardInner() {
         <div style={{ overflow: "hidden" }}>
           <CenterPanel
             channels={visibleChannels}
-            selectedChannel={selectedChannel}
             messages={messages}
             sendMessage={sendMessage}
             connected={connected}
-            onWarn={(u, channelLogin) => openModal("warn", u, channels.find((c) => c.broadcaster_login === channelLogin)?.broadcaster_id)}
-            onTimeout={(u, channelLogin) => openModal("timeout", u, channels.find((c) => c.broadcaster_login === channelLogin)?.broadcaster_id)}
-            onBan={(u, channelLogin) => openModal("ban", u, channels.find((c) => c.broadcaster_login === channelLogin)?.broadcaster_id)}
+            onWarn={(u) => openModal("warn", u)}
+            onTimeout={(u) => openModal("timeout", u)}
+            onBan={(u) => openModal("ban", u)}
           />
         </div>
 
         {/* Right sidebar */}
         <div className="right-sidebar" style={{ borderLeft: "1px solid rgba(255,255,255,0.07)", overflow: "hidden" }}>
           <RightSidebar
-            selectedChannel={selectedChannel}
             channels={visibleChannels}
-            onChatterClick={(u, channelId) => openModal("ban", u, channelId)}
-            onBan={(u, channelId) => openModal("ban", u, channelId)}
-            onTimeout={(u, channelId) => openModal("timeout", u, channelId)}
-            onWarn={(u, channelId) => openModal("warn", u, channelId)}
+            onChatterClick={(u) => openModal("ban", u)}
+            onBan={(u) => openModal("ban", u)}
+            onTimeout={(u) => openModal("timeout", u)}
+            onWarn={(u) => openModal("warn", u)}
             onPoll={() => openModal("poll")}
             onPrediction={() => openModal("prediction")}
           />
         </div>
       </div>
 
-      {/* Modals */}
-      {modal === "ban" && <BanModal channels={channels} onClose={() => setModal(null)} defaultUsername={prefillUsername} defaultChannelId={modalChannelId} />}
-      {modal === "timeout" && <TimeoutModal channels={channels} onClose={() => setModal(null)} defaultUsername={prefillUsername} defaultChannelId={modalChannelId} />}
-      {modal === "warn" && <WarnModal channels={channels} onClose={() => setModal(null)} defaultUsername={prefillUsername} defaultChannelId={modalChannelId} />}
-      {modal === "announce" && <AnnounceModal channels={channels} onClose={() => setModal(null)} defaultChannelId={modalChannelId} />}
-      {modal === "poll" && <PollModal channels={channels} onClose={() => setModal(null)} defaultChannelId={modalChannelId} />}
-      {modal === "prediction" && <PredictionModal channels={channels} onClose={() => setModal(null)} defaultChannelId={modalChannelId} />}
+      {/* Modals — all default to activeChannel from context */}
+      {modal === "ban" && <BanModal channels={channels} onClose={() => setModal(null)} defaultUsername={prefillUsername} defaultChannelId={activeChannel?.broadcaster_id} />}
+      {modal === "timeout" && <TimeoutModal channels={channels} onClose={() => setModal(null)} defaultUsername={prefillUsername} defaultChannelId={activeChannel?.broadcaster_id} />}
+      {modal === "warn" && <WarnModal channels={channels} onClose={() => setModal(null)} defaultUsername={prefillUsername} defaultChannelId={activeChannel?.broadcaster_id} />}
+      {modal === "announce" && <AnnounceModal channels={channels} onClose={() => setModal(null)} defaultChannelId={activeChannel?.broadcaster_id} />}
+      {modal === "poll" && <PollModal channels={channels} onClose={() => setModal(null)} defaultChannelId={activeChannel?.broadcaster_id} />}
+      {modal === "prediction" && <PredictionModal channels={channels} onClose={() => setModal(null)} defaultChannelId={activeChannel?.broadcaster_id} />}
     </div>
   );
 }
@@ -203,9 +196,11 @@ export default function DashboardPage() {
   return (
     <AuthProvider>
       <ChannelProvider>
-        <ToastProvider>
-          <DashboardInner />
-        </ToastProvider>
+        <ActiveChannelProvider>
+          <ToastProvider>
+            <DashboardInner />
+          </ToastProvider>
+        </ActiveChannelProvider>
       </ChannelProvider>
     </AuthProvider>
   );

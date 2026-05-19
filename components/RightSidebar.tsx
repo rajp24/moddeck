@@ -1,15 +1,15 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { Channel } from "@/context/ChannelContext";
+import { useActiveChannel } from "@/context/ActiveChannelContext";
 import { useToastContext } from "@/context/ToastContext";
 
 interface Props {
-  selectedChannel: Channel | null;
   channels: Channel[];
-  onChatterClick: (username: string, channelId?: string) => void;
-  onBan: (username: string, channelId?: string) => void;
-  onTimeout: (username: string, channelId?: string) => void;
-  onWarn: (username: string, channelId?: string) => void;
+  onChatterClick: (username: string) => void;
+  onBan: (username: string) => void;
+  onTimeout: (username: string) => void;
+  onWarn: (username: string) => void;
   onPoll: () => void;
   onPrediction: () => void;
 }
@@ -20,8 +20,9 @@ interface Chatter {
   user_name: string;
 }
 
-export default function RightSidebar({ selectedChannel, channels, onChatterClick, onBan, onTimeout, onWarn, onPoll, onPrediction }: Props) {
+export default function RightSidebar({ channels, onChatterClick, onBan, onTimeout, onWarn, onPoll, onPrediction }: Props) {
   const { addToast } = useToastContext();
+  const { activeChannel } = useActiveChannel();
   const [tab, setTab] = useState<"community" | "automod" | "polls">("community");
   const [chatters, setChatters] = useState<Chatter[]>([]);
   const [chatterSearch, setChatterSearch] = useState("");
@@ -32,30 +33,30 @@ export default function RightSidebar({ selectedChannel, channels, onChatterClick
   const [chatterMenu, setChatterMenu] = useState<string | null>(null);
 
   const fetchChatters = useCallback(async () => {
-    if (!selectedChannel) return;
-    const res = await fetch(`/api/twitch/chatters?broadcaster_id=${selectedChannel.broadcaster_id}`);
+    if (!activeChannel) return;
+    const res = await fetch(`/api/twitch/chatters?broadcaster_id=${activeChannel.broadcaster_id}`);
     const data = await res.json();
     if (Array.isArray(data)) setChatters(data);
-  }, [selectedChannel]);
+  }, [activeChannel]);
 
   const fetchAutomod = useCallback(async () => {
-    if (!selectedChannel) return;
-    const res = await fetch(`/api/twitch/automod?broadcaster_id=${selectedChannel.broadcaster_id}`);
+    if (!activeChannel) return;
+    const res = await fetch(`/api/twitch/automod?broadcaster_id=${activeChannel.broadcaster_id}`);
     const data = await res.json();
     if (Array.isArray(data)) setAutomodQueue(data);
-  }, [selectedChannel]);
+  }, [activeChannel]);
 
   const fetchPolls = useCallback(async () => {
-    if (!selectedChannel) return;
+    if (!activeChannel) return;
     const [pollRes, predRes] = await Promise.all([
-      fetch(`/api/twitch/poll?broadcaster_id=${selectedChannel.broadcaster_id}`),
-      fetch(`/api/twitch/prediction?broadcaster_id=${selectedChannel.broadcaster_id}`),
+      fetch(`/api/twitch/poll?broadcaster_id=${activeChannel.broadcaster_id}`),
+      fetch(`/api/twitch/prediction?broadcaster_id=${activeChannel.broadcaster_id}`),
     ]);
     const polls = await pollRes.json();
     const preds = await predRes.json();
     setActivePoll(Array.isArray(polls) && polls[0] ? polls[0] : null);
     setActivePrediction(Array.isArray(preds) && preds[0] ? preds[0] : null);
-  }, [selectedChannel]);
+  }, [activeChannel]);
 
   useEffect(() => {
     fetchChatters();
@@ -75,11 +76,11 @@ export default function RightSidebar({ selectedChannel, channels, onChatterClick
   }, [chatterMenu]);
 
   const handleAutomod = async (msg_id: string, action: "ALLOW" | "DENY") => {
-    if (!selectedChannel) return;
+    if (!activeChannel) return;
     await fetch("/api/twitch/automod", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ broadcaster_id: selectedChannel.broadcaster_id, msg_id, action }),
+      body: JSON.stringify({ broadcaster_id: activeChannel.broadcaster_id, msg_id, action }),
     });
     setAutomodQueue((prev) => prev.filter((m) => m.msg_id !== msg_id));
     addToast(action === "ALLOW" ? "Message allowed" : "Message denied", action === "ALLOW" ? "success" : "error");
@@ -133,7 +134,7 @@ export default function RightSidebar({ selectedChannel, channels, onChatterClick
               <div key={c.user_id} style={{ position: "relative", display: "flex", alignItems: "center", gap: 8, padding: "7px 4px", borderBottom: "1px solid rgba(255,255,255,0.05)", borderRadius: 6, transition: "background 0.15s" }}
                 onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.04)")}
                 onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
-                <div onClick={() => onChatterClick(c.user_login, selectedChannel?.broadcaster_id)} style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, cursor: "pointer" }}>
+                <div onClick={() => onChatterClick(c.user_login)} style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, cursor: "pointer" }}>
                   <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(145,71,255,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#c084fc", flexShrink: 0 }}>
                     {c.user_name[0]?.toUpperCase()}
                   </div>
@@ -146,9 +147,9 @@ export default function RightSidebar({ selectedChannel, channels, onChatterClick
                   <div style={{ position: "absolute", right: 0, top: "100%", zIndex: 50, background: "#13131f", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: 6, minWidth: 130, boxShadow: "0 8px 24px rgba(0,0,0,0.5)" }}
                     onClick={(e) => e.stopPropagation()}>
                     {[
-                      { label: "⚠️ Warn", action: () => { onWarn(c.user_login, selectedChannel?.broadcaster_id); setChatterMenu(null); } },
-                      { label: "⏱ Timeout", action: () => { onTimeout(c.user_login, selectedChannel?.broadcaster_id); setChatterMenu(null); } },
-                      { label: "🔨 Ban", action: () => { onBan(c.user_login, selectedChannel?.broadcaster_id); setChatterMenu(null); } },
+                      { label: "⚠️ Warn", action: () => { onWarn(c.user_login); setChatterMenu(null); } },
+                      { label: "⏱ Timeout", action: () => { onTimeout(c.user_login); setChatterMenu(null); } },
+                      { label: "🔨 Ban", action: () => { onBan(c.user_login); setChatterMenu(null); } },
                     ].map(item => (
                       <button key={item.label} onClick={item.action} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", color: "rgba(232,232,240,0.85)", fontSize: 13, padding: "6px 10px", cursor: "pointer", borderRadius: 6 }}
                         onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.08)")}
