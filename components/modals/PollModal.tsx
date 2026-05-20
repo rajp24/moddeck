@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Channel } from "@/context/ChannelContext";
 import { useToastContext } from "@/context/ToastContext";
+import { useAuth } from "@/context/AuthContext";
 
 const DURATIONS = [{ label: "1m", value: 60 }, { label: "2m", value: 120 }, { label: "5m", value: 300 }, { label: "10m", value: 600 }];
 
@@ -9,10 +10,13 @@ interface Props { channels: Channel[]; onClose: () => void; defaultChannelId?: s
 
 export default function PollModal({ channels, onClose, defaultChannelId }: Props) {
   const { addToast } = useToastContext();
+  const { user } = useAuth();
+  // Polls can only be created on the broadcaster's own channel
+  const ownChannel = channels.find(c => c.broadcaster_id === user?.user_id) || null;
   const [title, setTitle] = useState("");
   const [choices, setChoices] = useState(["", ""]);
   const [duration, setDuration] = useState(120);
-  const [channelId, setChannelId] = useState(defaultChannelId || channels[0]?.broadcaster_id || "");
+  const [channelId] = useState(ownChannel?.broadcaster_id || "");
   const [loading, setLoading] = useState(false);
 
   const addChoice = () => choices.length < 5 && setChoices([...choices, ""]);
@@ -71,13 +75,11 @@ export default function PollModal({ channels, onClose, defaultChannelId }: Props
               ))}
             </div>
           </div>
-          <div>
-            <label style={{ fontSize: 12, color: "rgba(232,232,240,0.6)", display: "block", marginBottom: 6 }}>Channel</label>
-            <select value={channelId} onChange={(e) => setChannelId(e.target.value)}>
-              {channels.map((c) => <option key={c.broadcaster_id} value={c.broadcaster_id}>{c.broadcaster_name}</option>)}
-            </select>
+          <div style={{ background: "rgba(250,204,21,0.08)", border: "1px solid rgba(250,204,21,0.25)", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "rgba(250,204,21,0.85)" }}>
+            ⚠️ Twitch only allows polls on your own channel. Creating for: <strong>{ownChannel?.broadcaster_name || "—"}</strong>
           </div>
-          <button onClick={handleSubmit} disabled={loading} style={{
+          {!ownChannel && <div style={{ color: "#f87171", fontSize: 13 }}>Your channel was not found. Re-login to fix this.</div>}
+          <button onClick={handleSubmit} disabled={loading || !ownChannel} style={{
             background: "rgba(74,222,128,0.2)", color: "#4ade80", border: "1px solid rgba(74,222,128,0.3)",
             borderRadius: 10, padding: "10px 18px", fontSize: 14, fontWeight: 600, cursor: "pointer",
           }}>{loading ? "Creating..." : "Create Poll"}</button>

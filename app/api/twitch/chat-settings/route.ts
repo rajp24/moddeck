@@ -30,7 +30,9 @@ export async function PATCH(req: NextRequest) {
         : { slow_mode: false };
       break;
     case "followers_only":
-      body = { follower_mode: value !== false, follower_mode_duration: value === false ? 0 : (value || 0) };
+      body = (value === false || value === 0)
+        ? { follower_mode: false, follower_mode_duration: 0 }
+        : { follower_mode: true, follower_mode_duration: 0 };
       break;
     case "sub_only":
       body = { subscriber_mode: value };
