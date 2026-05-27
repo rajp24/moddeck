@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession, twitchFetch, canManageChannel, fetchModeratedChannelIds } from "@/lib/twitch";
+import { getSession, twitchFetch, isBroadcaster } from "@/lib/twitch";
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -7,12 +7,10 @@ export async function POST(req: NextRequest) {
 
   const { broadcaster_id, title, outcomes, prediction_window } = await req.json();
 
-  // Verify the caller is at least a moderator of this channel before forwarding to Twitch.
-  // (Twitch's API will enforce broadcaster-only at its end and return its own error if needed.)
-  const moderatedIds = await fetchModeratedChannelIds(session);
-  if (!canManageChannel(session, broadcaster_id, moderatedIds)) {
+  // Twitch enforces broadcaster_id === token user_id for predictions — no mod exception exists.
+  if (!isBroadcaster(session, broadcaster_id)) {
     return NextResponse.json(
-      { error: "You are not a moderator or broadcaster of this channel." },
+      { error: "Predictions can only be created on your own channel. Twitch does not allow moderators to create predictions on other channels." },
       { status: 403 }
     );
   }

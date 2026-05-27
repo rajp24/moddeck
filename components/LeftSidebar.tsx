@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { Channel, useChannels } from "@/context/ChannelContext";
+import { useAuth } from "@/context/AuthContext";
 import { useActiveChannel } from "@/context/ActiveChannelContext";
 import { useToastContext } from "@/context/ToastContext";
 
@@ -50,11 +51,11 @@ export default function LeftSidebar({ channels, onBan, onTimeout, onWarn, onAnno
   const { addToast } = useToastContext();
   // Single source of truth for the active channel
   const { activeChannel, setActiveChannel } = useActiveChannel();
-  // Own channel + all moderated channels — if a channel appears here, the user can manage it
-  const { channels: allChannels, loading: channelsLoading } = useChannels();
-  // While channels are loading, treat as manageable (optimistic) to avoid flicker.
-  // Once loaded, check if active channel appears in the own+moderated list.
-  const canManageActive = channelsLoading || (!!activeChannel && allChannels.some(c => c.broadcaster_id === activeChannel.broadcaster_id));
+  const { user } = useAuth();
+  const { loading: channelsLoading } = useChannels();
+  // Polls and predictions are broadcaster-only — only enabled when active channel is own channel.
+  // While channels are loading, stay optimistic to avoid flicker.
+  const canCreateForActive = channelsLoading || (!!user && !!activeChannel && activeChannel.broadcaster_id === user.user_id);
 
   const [toggles, setToggles] = useState({
     slow_mode: false, followers_only: false, sub_only: false,
@@ -150,11 +151,11 @@ export default function LeftSidebar({ channels, onBan, onTimeout, onWarn, onAnno
       <Section title="Quick Actions" />
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
         {QUICK_ACTIONS.map((a) => {
-          const requiresManage = a.action === "poll" || a.action === "predict";
-          // Dim only when we know for certain the user can't manage this channel
-          const disabled = requiresManage && !channelsLoading && !canManageActive;
+          const requiresOwn = a.action === "poll" || a.action === "predict";
+          // Dim only once loaded and active channel is confirmed not own channel
+          const disabled = requiresOwn && !channelsLoading && !canCreateForActive;
           const tooltip = disabled
-            ? `You are not a moderator of ${activeChannel?.broadcaster_name || "this channel"}`
+            ? `Twitch only allows you to create ${a.label.toLowerCase()}s on your own channel`
             : undefined;
           return (
             <button
