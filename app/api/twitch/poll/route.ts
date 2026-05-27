@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession, twitchFetch, isBroadcaster } from "@/lib/twitch";
+import { getSession, twitchFetch, canManageChannel, fetchModeratedChannelIds } from "@/lib/twitch";
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -7,11 +7,12 @@ export async function POST(req: NextRequest) {
 
   const { broadcaster_id, title, choices, duration } = await req.json();
 
-  // Twitch's polls endpoint is broadcaster-only — the token's user_id must match
-  // broadcaster_id. Moderators cannot create polls on other channels via the Helix API.
-  if (!isBroadcaster(session, broadcaster_id)) {
+  // Verify the caller is at least a moderator of this channel before forwarding to Twitch.
+  // (Twitch's API will enforce broadcaster-only at its end and return its own error if needed.)
+  const moderatedIds = await fetchModeratedChannelIds(session);
+  if (!canManageChannel(session, broadcaster_id, moderatedIds)) {
     return NextResponse.json(
-      { error: "Polls can only be created by the broadcaster. You need to be the owner of the channel, not just a moderator." },
+      { error: "You are not a moderator or broadcaster of this channel." },
       { status: 403 }
     );
   }

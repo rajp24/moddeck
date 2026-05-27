@@ -1,9 +1,9 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Channel } from "@/context/ChannelContext";
+import { Channel, useChannels } from "@/context/ChannelContext";
 import { useActiveChannel } from "@/context/ActiveChannelContext";
 import { useToastContext } from "@/context/ToastContext";
-import { useAuth } from "@/context/AuthContext";
+
 
 interface Props {
   channels: Channel[];
@@ -48,11 +48,13 @@ function Section({ title }: { title: string }) {
 
 export default function LeftSidebar({ channels, onBan, onTimeout, onWarn, onAnnounce, onPoll, onPrediction }: Props) {
   const { addToast } = useToastContext();
-  const { user } = useAuth();
   // Single source of truth for the active channel
   const { activeChannel, setActiveChannel } = useActiveChannel();
-  // Polls and predictions are broadcaster-only on Twitch's API
-  const activeIsBroadcaster = !!user && !!activeChannel && activeChannel.broadcaster_id === user.user_id;
+  // Own channel + all moderated channels — if a channel appears here, the user can manage it
+  const { channels: allChannels, loading: channelsLoading } = useChannels();
+  // While channels are loading, treat as manageable (optimistic) to avoid flicker.
+  // Once loaded, check if active channel appears in the own+moderated list.
+  const canManageActive = channelsLoading || (!!activeChannel && allChannels.some(c => c.broadcaster_id === activeChannel.broadcaster_id));
 
   const [toggles, setToggles] = useState({
     slow_mode: false, followers_only: false, sub_only: false,
@@ -148,10 +150,11 @@ export default function LeftSidebar({ channels, onBan, onTimeout, onWarn, onAnno
       <Section title="Quick Actions" />
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
         {QUICK_ACTIONS.map((a) => {
-          const broadcasterOnly = a.action === "poll" || a.action === "predict";
-          const disabled = broadcasterOnly && !activeIsBroadcaster;
+          const requiresManage = a.action === "poll" || a.action === "predict";
+          // Dim only when we know for certain the user can't manage this channel
+          const disabled = requiresManage && !channelsLoading && !canManageActive;
           const tooltip = disabled
-            ? `You need broadcaster access on ${activeChannel?.broadcaster_name || "this channel"} to use ${a.label}`
+            ? `You are not a moderator of ${activeChannel?.broadcaster_name || "this channel"}`
             : undefined;
           return (
             <button

@@ -57,7 +57,18 @@ export function canManageChannel(
   broadcaster_id: string,
   moderatedChannelIds: string[] = []
 ): boolean {
-  return session.user_id === broadcaster_id || moderatedChannelIds.includes(broadcaster_id);
+  const isBcast = session.user_id === broadcaster_id;
+  const isMod = moderatedChannelIds.includes(broadcaster_id);
+  console.log(
+    "[canManageChannel] checking broadcaster_id=%s | session.user_id=%s | isBroadcaster=%s | moderatedChannelIds=%s | isMod=%s | result=%s",
+    broadcaster_id,
+    session.user_id,
+    isBcast,
+    JSON.stringify(moderatedChannelIds),
+    isMod,
+    isBcast || isMod,
+  );
+  return isBcast || isMod;
 }
 
 /**
