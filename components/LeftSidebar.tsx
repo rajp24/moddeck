@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { Channel } from "@/context/ChannelContext";
 import { useActiveChannel } from "@/context/ActiveChannelContext";
 import { useToastContext } from "@/context/ToastContext";
+import { useAuth } from "@/context/AuthContext";
 
 interface Props {
   channels: Channel[];
@@ -47,8 +48,11 @@ function Section({ title }: { title: string }) {
 
 export default function LeftSidebar({ channels, onBan, onTimeout, onWarn, onAnnounce, onPoll, onPrediction }: Props) {
   const { addToast } = useToastContext();
+  const { user } = useAuth();
   // Single source of truth for the active channel
   const { activeChannel, setActiveChannel } = useActiveChannel();
+  // Polls and predictions are broadcaster-only on Twitch's API
+  const activeIsBroadcaster = !!user && !!activeChannel && activeChannel.broadcaster_id === user.user_id;
 
   const [toggles, setToggles] = useState({
     slow_mode: false, followers_only: false, sub_only: false,
@@ -143,13 +147,29 @@ export default function LeftSidebar({ channels, onBan, onTimeout, onWarn, onAnno
     <div style={{ height: "100%", overflowY: "auto", padding: "16px 12px", display: "flex", flexDirection: "column" }}>
       <Section title="Quick Actions" />
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-        {QUICK_ACTIONS.map((a) => (
-          <button key={a.action} onClick={() => handleAction(a.action)} style={{
-            background: a.bg, color: a.color, border: `1px solid ${a.color}40`,
-            borderRadius: 10, padding: "14px 8px", fontSize: 13, fontWeight: 600,
-            cursor: "pointer", transition: "all 0.2s", minHeight: 44,
-          }}>{a.icon} {a.label}</button>
-        ))}
+        {QUICK_ACTIONS.map((a) => {
+          const broadcasterOnly = a.action === "poll" || a.action === "predict";
+          const disabled = broadcasterOnly && !activeIsBroadcaster;
+          const tooltip = disabled
+            ? `You need broadcaster access on ${activeChannel?.broadcaster_name || "this channel"} to use ${a.label}`
+            : undefined;
+          return (
+            <button
+              key={a.action}
+              onClick={() => handleAction(a.action)}
+              title={tooltip}
+              style={{
+                background: a.bg, color: a.color, border: `1px solid ${a.color}40`,
+                borderRadius: 10, padding: "14px 8px", fontSize: 13, fontWeight: 600,
+                cursor: disabled ? "not-allowed" : "pointer",
+                transition: "all 0.2s", minHeight: 44,
+                opacity: disabled ? 0.4 : 1,
+              }}
+            >
+              {a.icon} {a.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* Control Channel — single source of truth via context */}
